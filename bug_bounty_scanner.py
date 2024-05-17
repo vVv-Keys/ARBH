@@ -2,7 +2,9 @@ import requests
 import threading
 import argparse
 import logging
+from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
+import os
 
 # Setup logging
 logging.basicConfig(filename='scan_report.log', level=logging.INFO, 
@@ -53,12 +55,45 @@ def test_xss(url, payload):
 def parse_args():
     parser = argparse.ArgumentParser(description='Automated Bug Bounty Scanner')
     parser.add_argument('url', type=str, help='Target URL to scan')
+    parser.add_argument('--login-url', type=str, help='Login URL for authenticated scans')
+    parser.add_argument('--username', type=str, help='Username for login')
+    parser.add_argument('--password', type=str, help='Password for login')
     return parser.parse_args()
 
 # Function to validate URL
 def validate_url(url):
     parsed = urlparse(url)
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+# Function to login and create a session
+def login(login_url, username, password):
+    session = requests.Session()
+    login_payload = {'username': username, 'password': password}
+    session.post(login_url, data=login_payload)
+    return session
+
+# Function to discover URLs
+def discover_urls(base_url, session):
+    urls = set()
+    try:
+        response = session.get(base_url, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        for link in soup.find_all('a', href=True):
+            url = urljoin(base_url, link['href'])
+            if validate_url(url):
+                urls.add(url)
+    except requests.RequestException as e:
+        logging.error(f"Error discovering URLs on {base_url}: {e}")
+    return urls
+
+# Function to generate HTML report
+def generate_report():
+    with open('scan_report.log', 'r') as log_file:
+        logs = log_file.readlines()
+    with open('scan_report.html', 'w') as report_file:
+        report_file.write('<html><body><h1>Scan Report</h1><pre>')
+        report_file.writelines(logs)
+        report_file.write('</pre></body></html>')
 
 # Main function to run tests
 def main():
@@ -72,25 +107,34 @@ def main():
     print("Starting scan...")
     logging.info(f"Starting scan on {target_url}")
 
+    session = requests.Session()
+    if args.login_url and args.username and args.password:
+        session = login(args.login_url, args.username, args.password)
+
+    urls = discover_urls(target_url, session)
+
     threads = []
 
-    print("Testing for SQL Injection...")
-    for payload in sql_injection_payloads:
-        thread = threading.Thread(target=test_sql_injection, args=(target_url, payload))
-        threads.append(thread)
-        thread.start()
+    for url in urls:
+        print(f"Testing for SQL Injection on {url}...")
+        for payload in sql_injection_payloads:
+            thread = threading.Thread(target=test_sql_injection, args=(url, payload))
+            threads.append(thread)
+            thread.start()
 
-    print("Testing for XSS...")
-    for payload in xss_payloads:
-        thread = threading.Thread(target=test_xss, args=(target_url, payload))
-        threads.append(thread)
-        thread.start()
+        print(f"Testing for XSS on {url}...")
+        for payload in xss_payloads:
+            thread = threading.Thread(target=test_xss, args=(url, payload))
+            threads.append(thread)
+            thread.start()
 
     for thread in threads:
         thread.join()
 
-    print("Scan completed. Check scan_report.log for details.")
+    print("Scan completed. Generating report...")
     logging.info("Scan completed.")
+    generate_report()
+    print("Report generated: scan_report.html")
 
 if __name__ == "__main__":
     main()
