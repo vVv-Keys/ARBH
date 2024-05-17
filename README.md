@@ -1,3 +1,16 @@
+```
+██ ▄█▀▓█████▓██   ██▓  ██████ 
+██▄█▒ ▓█   ▀ ▒██  ██▒▒██    ▒  
+▓███▄░ ▒███    ▒██ ██░░ ▓██▄   
+▓██ █▄ ▒▓█  ▄  ░ ▐██▓░  ▒   ██▒
+▒██▒ █▄░▒████▒ ░ ██▒▓░▒██████▒▒
+▒ ▒▒ ▓▒░░ ▒░ ░  ██▒▒▒ ▒ ▒▓▒ ▒ ░
+░ ░▒ ▒░ ░ ░  ░▓██ ░▒░ ░ ░▒  ░ ░
+░ ░░ ░    ░   ▒ ▒ ░░  ░  ░  ░  
+░  ░      ░  ░░ ░           ░  
+              ░ ░ 
+```
+
 # Bug Bounty Scanner
 
 ## The Bug Bounty Scanner is an automated tool designed to assist in the discovery of security vulnerabilities in web applications. It performs a series of tests to identify common vulnerabilities such as SQL injection, cross-site scripting (XSS), command injection, and cross-site request forgery (CSRF). The tool is highly configurable and can be adapted to suit different testing scenarios.
