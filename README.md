@@ -14,7 +14,14 @@
 # Automated Bug Bounty Scanner
 
 ```
-This project is an automated bug bounty scanner designed to detect common web vulnerabilities such as SQL Injection, Cross-Site Scripting (XSS), Command Injection, and Cross-Site Request Forgery (CSRF). It includes features such as headless browsing, email alerts, and a detailed HTML report generation.
+This project is an automated bug bounty scanner designed to detect common web vulnerabilities such as
+
+- SQL Injection, 
+- Cross-Site Scripting (XSS),
+-  Command Injection, 
+- Cross-Site Request Forgery (CSRF). 
+
+- It includes features such as headless browsing, email alerts, and a detailed HTML report generation.
 ```
 
 ## Features
