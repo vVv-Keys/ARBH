@@ -9,3 +9,4 @@ logging==0.5.1.2
 
 
 ## You are responsible for creating your own payloads.
+idna>=3.7 # not directly required, pinned by Snyk to avoid a vulnerability
