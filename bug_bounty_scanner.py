@@ -12,6 +12,11 @@ from email.mime.text import MIMEText
 from concurrent.futures import ThreadPoolExecutor
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from retrying import retry
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(filename='scan_report.log', level=logging.INFO, 
@@ -28,8 +33,8 @@ cmd_injection_payloads = load_payloads('cmd_payloads.txt')
 
 # Function to send email alerts
 def send_email_alert(subject, body, to_email):
-    from_email = 'your_email@example.com'
-    from_password = 'your_email_password'
+    from_email = os.getenv('EMAIL_ADDRESS')
+    from_password = os.getenv('EMAIL_PASSWORD')
     
     msg = MIMEMultipart()
     msg['From'] = from_email
@@ -38,21 +43,29 @@ def send_email_alert(subject, body, to_email):
     
     msg.attach(MIMEText(body, 'plain'))
     
-    server = smtplib.SMTP('smtp.example.com', 587)
-    server.starttls()
-    server.login(from_email, from_password)
-    text = msg.as_string()
-    server.sendmail(from_email, to_email, text)
-    server.quit()
+    try:
+        server = smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT')))
+        server.starttls()
+        server.login(from_email, from_password)
+        text = msg.as_string()
+        server.sendmail(from_email, to_email, text)
+        server.quit()
+        logging.info("Email alert sent successfully")
+    except Exception as e:
+        logging.error(f"Error sending email alert: {e}")
+
+@retry(stop_max_attempt_number=3, wait_fixed=2000)
+def request_with_retry(session, url, params):
+    return session.get(url, params=params, timeout=10)
 
 # Function to test for SQL Injection
 def test_sql_injection(url, payload, session):
     try:
-        response = session.get(url, params={'q': payload}, timeout=10)
+        response = request_with_retry(session, url, params={'q': payload})
         if "sql syntax" in response.text.lower() or "you have an error in your sql syntax" in response.text.lower():
             logging.info(f"Possible SQL Injection vulnerability found with payload: {payload}")
             print(f"Possible SQL Injection vulnerability found with payload: {payload}")
-            send_email_alert("SQL Injection Found", f"Possible SQL Injection vulnerability found with payload: {payload}", "alert@example.com")
+            send_email_alert("SQL Injection Found", f"Possible SQL Injection vulnerability found with payload: {payload}", os.getenv('ALERT_EMAIL'))
         else:
             logging.info(f"No SQL Injection vulnerability found with payload: {payload}")
     except requests.RequestException as e:
@@ -61,11 +74,11 @@ def test_sql_injection(url, payload, session):
 # Function to test for XSS
 def test_xss(url, payload, session):
     try:
-        response = session.get(url, params={'q': payload}, timeout=10)
+        response = request_with_retry(session, url, params={'q': payload})
         if payload in response.text:
             logging.info(f"Possible XSS vulnerability found with payload: {payload}")
             print(f"Possible XSS vulnerability found with payload: {payload}")
-            send_email_alert("XSS Found", f"Possible XSS vulnerability found with payload: {payload}", "alert@example.com")
+            send_email_alert("XSS Found", f"Possible XSS vulnerability found with payload: {payload}", os.getenv('ALERT_EMAIL'))
         else:
             logging.info(f"No XSS vulnerability found with payload: {payload}")
     except requests.RequestException as e:
@@ -74,11 +87,11 @@ def test_xss(url, payload, session):
 # Function to test for Command Injection
 def test_cmd_injection(url, payload, session):
     try:
-        response = session.get(url, params={'q': payload}, timeout=10)
+        response = request_with_retry(session, url, params={'q': payload})
         if "command not found" in response.text.lower() or "not recognized as an internal or external command" in response.text.lower():
             logging.info(f"Possible Command Injection vulnerability found with payload: {payload}")
             print(f"Possible Command Injection vulnerability found with payload: {payload}")
-            send_email_alert("Command Injection Found", f"Possible Command Injection vulnerability found with payload: {payload}", "alert@example.com")
+            send_email_alert("Command Injection Found", f"Possible Command Injection vulnerability found with payload: {payload}", os.getenv('ALERT_EMAIL'))
         else:
             logging.info(f"No Command Injection vulnerability found with payload: {payload}")
     except requests.RequestException as e:
@@ -87,14 +100,14 @@ def test_cmd_injection(url, payload, session):
 # Function to test for CSRF protection
 def test_csrf(url, session):
     try:
-        response = session.get(url, timeout=10)
+        response = request_with_retry(session, url, params={})
         soup = BeautifulSoup(response.text, 'html.parser')
         forms = soup.find_all('form')
         for form in forms:
             if not form.find('input', {'name': 'csrf_token'}):
                 logging.info(f"Possible CSRF vulnerability found in form at {url}")
                 print(f"Possible CSRF vulnerability found in form at {url}")
-                send_email_alert("CSRF Found", f"Possible CSRF vulnerability found in form at {url}", "alert@example.com")
+                send_email_alert("CSRF Found", f"Possible CSRF vulnerability found in form at {url}", os.getenv('ALERT_EMAIL'))
             else:
                 logging.info(f"CSRF token found in form at {url}")
     except requests.RequestException as e:
@@ -153,7 +166,7 @@ def discover_urls_headless(base_url):
 def discover_urls(base_url, session):
     urls = set()
     try:
-        response = session.get(base_url, timeout=10)
+        response = request_with_retry(session, base_url, params={})
         soup = BeautifulSoup(response.text, 'html.parser')
         for link in soup.find_all('a', href=True):
             url = urljoin(base_url, link['href'])
